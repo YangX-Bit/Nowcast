@@ -89,7 +89,7 @@ simsP <- function(Type = "GD", gd_alpha = 1:20, gd_beta = 20:1, D = 15, days = 3
         p[i, ] <- generate_controlled_sum(D + 1, alpha = 1, beta = 1000, order = "decreasing")
         
       } else if (i <= (n[1] + n[2])) {
-        p[i, ] <- generate_controlled_sum(D + 1, alpha = 100, beta = 1)
+        p[i, ] <- generate_controlled_sum(D + 1, alpha = 10, beta = 1)
         
       } else {
         p[i, ] <- generate_controlled_sum(D + 1, alpha = 1, beta = 1000, order = "increasing")
@@ -106,11 +106,13 @@ p3 <- simsP(Type = "basin", D = 15, days = 58)
 
 par(mfrow = c(5,6))
 for (i in 1:30) {
-  plot(p3[i,], type = "l")
+  plot(p3[i,], type = "l",
+       xlab = "Delays", ylab = "")
 }
-# 
+#
 for (i in 1:30) {
-  plot(t(apply(p3, 1, cumsum))[i,], type = "l")
+  plot(t(apply(p3, 1, cumsum))[i,], type = "l", 
+       xlab = "Delays", ylab = "")
 }
 
 ### functions to generate simulation data
@@ -154,9 +156,11 @@ simsDataGen <- function(alpha =  c(1:10, seq(10, 120, by = 4), seq(120, 3, by = 
       N_tT[i,] = rmultinom(1, size = true_cases[i], prob = p_cut[i,])
     }
   }
-  return(N_tT)
+  out <- list(case_reported = N_tT, case_true = true_cases)
+  
+  return(out)
 }
-simsDataGen(p = p3, days = 58)
+
 
 ### functions to transfer the simulation data to the form of data in the paper
 # Parameters:
