@@ -29,6 +29,13 @@ rGeneralizedDirichlet <- function(n = 1, alpha, beta) {
   return(X)
 }
 
+k <- 30
+alpha <- seq(2, 3, length.out = k)  # 线性递增的 alpha
+beta <- seq(2, 3, length.out = k)   # 线性递增的 beta
+
+# sum(rGeneralizedDirichlet(n = 1, alpha = seq(3,3.3, by = 0.01), beta = rep(30,30))[1:15])
+
+
 ### functions to generate p(delay probability)
 # Parameters:
 #  n - number of samples
@@ -133,33 +140,75 @@ simsDataGen <- function(alpha =  c(1:10, seq(10, 120, by = 4), seq(120, 3, by = 
   # Cut the probability according to the Maximal delay that we concern
   p_cut <- p[, c(1:(D+1))]
   # Initialize storage for true cases and reported cases
-  true_cases <- numeric(days)  # Actual number of cases per day
-  reported_cases <- matrix(0, nrow = days, ncol = D + 1)  # Reported cases matrix for delays 0 to D days
-  
-  # Simulate the true number of cases per day
-  for (t in 1:days) {
-    # Draw the Poisson intensity parameter lambda_t from a Gamma distribution
-    lambda_t <- rgamma(1, shape = alpha[t], rate = beta)
-    
-    # Draw the actual number of cases N(t, ∞) from a Poisson distribution
-    true_cases[t] <- rpois(1, lambda = lambda_t)
-  }
+  # lambda_t<- true_cases <- numeric(days)  # Actual number of cases per day
+  # reported_cases <- matrix(0, nrow = days, ncol = D + 1)  # Reported cases matrix for delays 0 to D days
 
-  # REPORTED CASES
-  N_tT <- matrix(0, ncol = D+1, nrow = days)
-  if(nrow(p) == 1){
-    for (i in 1:days) {
-      N_tT[i,] = rmultinom(1, size = true_cases[i], prob = p_cut)
+  # # Simulate the true number of cases per day
+  # for (t in 1:days) {
+  #   # Draw the Poisson intensity parameter lambda_t from a Gamma distribution
+  #   lambda_t[t] <- rgamma(1, shape = alpha[t], rate = beta)
+  # 
+  #   # Draw the actual number of cases N(t, ∞) from a Poisson distribution
+  #   true_cases[t] <- rpois(1, lambda = lambda_t[t])
+  # }
+  # 
+  # # REPORTED CASES
+  # N_tT <- matrix(0, ncol = D+1, nrow = days)
+  # if(nrow(p) == 1){
+  #   for (i in 1:days) {
+  #     N_tT[i,] = rmultinom(1, size = true_cases[i], prob = p_cut)
+  #   }
+  # }else{
+  #   for (i in 1:days) {
+  #     N_tT[i,] = rmultinom(1, size = true_cases[i], prob = p_cut[i,])
+  #   }
+  # }
+  
+  # Number of simulations to run (e.g., 1000)
+  simulations <- 1000
+  
+  # Arrays to accumulate the results across multiple simulations
+  lambda_t <- matrix(0, nrow = days, ncol = simulations)  # Lambda for each day and each simulation
+  true_cases <- matrix(0, nrow = days, ncol = simulations)  # Actual number of cases per day for each simulation
+  reported_cases <- array(0, dim = c(days, D + 1, simulations))  # Reported cases matrix for delays 0 to D days for each simulation
+  
+  # Loop over the number of simulations
+  for (sim in 1:simulations) {
+    # Simulate the true number of cases per day
+    for (t in 1:days) {
+      # Draw the Poisson intensity parameter lambda_t from a Gamma distribution
+      lambda_t[t, sim] <- rgamma(1, shape = alpha[t], rate = beta)
+      
+      # Draw the actual number of cases N(t, ∞) from a Poisson distribution
+      true_cases[t, sim] <- rpois(1, lambda = lambda_t[t, sim])
     }
-  }else{
-    for (i in 1:days) {
-      N_tT[i,] = rmultinom(1, size = true_cases[i], prob = p_cut[i,])
+    
+    # Reported cases based on delay distribution
+    if (nrow(p) == 1) {
+      for (i in 1:days) {
+        reported_cases[i, , sim] = rmultinom(1, size = true_cases[i, sim], prob = p_cut)
+      }
+    } else {
+      for (i in 1:days) {
+        reported_cases[i, , sim] = rmultinom(1, size = true_cases[i, sim], prob = p_cut[i, ])
+      }
     }
   }
-  out <- list(case_reported = N_tT, case_true = true_cases)
   
+  # Take the average of lambda_t, true_cases, and reported_cases across simulations
+  # lambda_t <- apply(lambda_t_accum, 2, mean)
+  # true_cases <- apply(true_cases_accum, 2, mean)
+  # N_tT <- apply(N_tT_accum, c(2, 3), mean)
+  avg_reported_cases <- apply(reported_cases, c(1, 2), mean)
+  
+  out <- list(case_reported = avg_reported_cases, case_true = true_cases,
+              lambda = lambda_t,
+              case_reported_acc = t(apply(avg_reported_cases, 1, cumsum)))
+
   return(out)
 }
+
+
 
 
 ### functions to transfer the simulation data to the form of data in the paper
