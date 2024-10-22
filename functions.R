@@ -29,10 +29,6 @@ rGeneralizedDirichlet <- function(n = 1, alpha, beta) {
   return(X)
 }
 
-k <- 30
-alpha <- seq(2, 3, length.out = k)  # 线性递增的 alpha
-beta <- seq(2, 3, length.out = k)   # 线性递增的 beta
-
 # sum(rGeneralizedDirichlet(n = 1, alpha = seq(3,3.3, by = 0.01), beta = rep(30,30))[1:15])
 
 
@@ -75,7 +71,9 @@ split_into_three <- function(n) {
 #  alpha - alpha
 #  beta - beta
 ###
-simsP <- function(Type = "GD", gd_alpha = 1:20, gd_beta = 20:1, D = 15, days = 30) {
+simsP <- function(Type = "GD", gd_alpha = 1:20, gd_beta = 20:1, D = 15, days = 30, seed = 123) {
+  set.seed(seed)
+  
   Type <- match.arg(Type, c("GD", "Multi_GD", "basin"))
   
   if (Type == "GD") {
@@ -90,14 +88,14 @@ simsP <- function(Type = "GD", gd_alpha = 1:20, gd_beta = 20:1, D = 15, days = 3
     # spit into three parts
     n <- split_into_three(days)
     p <- matrix(0, nrow = days, ncol = D + 1)
-    
+
     for (i in 1:days) {
       if (i <= n[1]) {
         p[i, ] <- generate_controlled_sum(D + 1, alpha = 1, beta = 1000, order = "decreasing")
-        
+
       } else if (i <= (n[1] + n[2])) {
         p[i, ] <- generate_controlled_sum(D + 1, alpha = 10, beta = 1)
-        
+
       } else {
         p[i, ] <- generate_controlled_sum(D + 1, alpha = 1, beta = 1000, order = "increasing")
       }
@@ -111,16 +109,44 @@ p1 <- simsP(Type = "GD", gd_alpha = 1:20, gd_beta = 20:1, D = 15, days = 58)
 p2 <- simsP(Type = "Multi_GD", gd_alpha = 1:20, gd_beta = 20:1, D = 15, days = 58)
 p3 <- simsP(Type = "basin", D = 15, days = 58)
 
-par(mfrow = c(5,6))
-for (i in 1:30) {
-  plot(p3[i,], type = "l",
-       xlab = "Delays", ylab = "")
+
+
+simsQ <- function(method = "constant", 
+                  b = 3, D = 15, t = NULL,
+                  beta1 = -2, beta2 = 0.1){
+  # 'method' defines how Q is simulated
+  # 'b' can be a constant or a time-varying function
+  # 'd' is the delay time, and 't' is the current time point (optional)
+  
+  if (method == "constant") {
+    qd <- 1 - exp(-b * 1:(D + 1))  # Q with constant b
+  } else if (method == "time_varying") {
+    if (is.null(t)) stop("Time 't' must be provided for time-varying method.")
+    
+    qd <- matrix(0, nrow = t, ncol = D+1)
+    for (i in 1:t) {
+      b_t <- exp(beta1 + beta2 * i)  
+      
+      qd[i,] <- 1 - exp(-b_t * 1:(D + 1))
+    }
+  } else {
+    stop("Unknown method for Q simulation.")
+  }
+  
+  return(qd)
 }
-#
-for (i in 1:30) {
-  plot(t(apply(p3, 1, cumsum))[i,], type = "l", 
-       xlab = "Delays", ylab = "")
-}
+simsQ("time_varying", t = 50)
+
+# par(mfrow = c(5,6))
+# for (i in 1:30) {
+#   plot(p3[i,], type = "l",
+#        xlab = "Delays", ylab = "")
+# }
+# #
+# for (i in 1:30) {
+#   plot(t(apply(p3, 1, cumsum))[i,], type = "l", 
+#        xlab = "Delays", ylab = "")
+# }
 
 ### functions to generate simulation data
 # Parameters:
@@ -128,7 +154,7 @@ for (i in 1:30) {
 #  alpha - alpha
 #  beta - beta
 ###
-simsDataGen <- function(alpha =  c(1:10, seq(10, 120, by = 4), seq(120, 3, by = -6) ), beta = 0.5,
+simsDataGenP <- function(alpha =  c(1:10, seq(10, 120, by = 4), seq(120, 3, by = -6) ), beta = 0.5,
                         days = 30, D = 15, seed = 123, p = NULL){
   if(length(alpha) < days){
     stop("Error! The length of alpha cannot be less than days!")
@@ -136,34 +162,11 @@ simsDataGen <- function(alpha =  c(1:10, seq(10, 120, by = 4), seq(120, 3, by = 
   
   set.seed(seed)
   # Generate the probability of case being reported at a certain day
-  # p <- rGeneralizedDirichlet(1, gd_alpha, gd_beta)
+
   # Cut the probability according to the Maximal delay that we concern
   p_cut <- p[, c(1:(D+1))]
-  # Initialize storage for true cases and reported cases
-  # lambda_t<- true_cases <- numeric(days)  # Actual number of cases per day
-  # reported_cases <- matrix(0, nrow = days, ncol = D + 1)  # Reported cases matrix for delays 0 to D days
-
-  # # Simulate the true number of cases per day
-  # for (t in 1:days) {
-  #   # Draw the Poisson intensity parameter lambda_t from a Gamma distribution
-  #   lambda_t[t] <- rgamma(1, shape = alpha[t], rate = beta)
-  # 
-  #   # Draw the actual number of cases N(t, ∞) from a Poisson distribution
-  #   true_cases[t] <- rpois(1, lambda = lambda_t[t])
-  # }
-  # 
-  # # REPORTED CASES
-  # N_tT <- matrix(0, ncol = D+1, nrow = days)
-  # if(nrow(p) == 1){
-  #   for (i in 1:days) {
-  #     N_tT[i,] = rmultinom(1, size = true_cases[i], prob = p_cut)
-  #   }
-  # }else{
-  #   for (i in 1:days) {
-  #     N_tT[i,] = rmultinom(1, size = true_cases[i], prob = p_cut[i,])
-  #   }
-  # }
   
+  # Initialize storage for true cases and reported cases
   # Number of simulations to run (e.g., 1000)
   simulations <- 1000
   
@@ -193,13 +196,13 @@ simsDataGen <- function(alpha =  c(1:10, seq(10, 120, by = 4), seq(120, 3, by = 
         reported_cases[i, , sim] = rmultinom(1, size = true_cases[i, sim], prob = p_cut[i, ])
       }
     }
+    
   }
-  
   # Take the average of lambda_t, true_cases, and reported_cases across simulations
   # lambda_t <- apply(lambda_t_accum, 2, mean)
   # true_cases <- apply(true_cases_accum, 2, mean)
   # N_tT <- apply(N_tT_accum, c(2, 3), mean)
-  avg_reported_cases <- apply(reported_cases, c(1, 2), mean)
+  # avg_reported_cases <- apply(reported_cases, c(1, 2), mean)
   
   out <- list(case_reported = avg_reported_cases, case_true = true_cases,
               lambda = lambda_t,
@@ -208,6 +211,47 @@ simsDataGen <- function(alpha =  c(1:10, seq(10, 120, by = 4), seq(120, 3, by = 
   return(out)
 }
 
+simsDataGenQ <- function(alpha =  c(1:10, seq(10, 120, by = 4), seq(120, 3, by = -6) ), beta = 0.5,
+                        b = 0.5, method = "constant",
+                        days = 30, D = 15, seed = 123){
+  if(length(alpha) < days){
+    stop("Error! The length of alpha cannot be less than days!")
+  }
+  
+  set.seed(seed)
+  # Initialize storage for true cases and reported cases
+  # Number of simulations to run (e.g., 1000)
+  simulations <- 1000
+  
+  # Arrays to accumulate the results across multiple simulations
+  lambda_t <- matrix(0, nrow = days, ncol = simulations)  # Lambda for each day and each simulation
+  true_cases <- matrix(0, nrow = days, ncol = simulations)  # Actual number of cases per day for each simulation
+  reported_cases <- array(0, dim = c(days, D + 1, simulations))  # Reported cases matrix for delays 0 to D days for each simulation
+  
+  # Loop over the number of simulations
+  for (sim in 1:simulations) {
+    # Simulate the true number of cases per day
+    for (t in 1:days) {
+      # Draw the Poisson intensity parameter lambda_t from a Gamma distribution
+      lambda_t[t, sim] <- rgamma(1, shape = alpha[t], rate = beta)
+      
+      # Draw the actual number of cases from a Poisson distribution
+      true_cases[t, sim] <- rpois(1, lambda = lambda_t[t, sim])
+      
+      # D times from binom
+      reported_temp <- numeric(D+1)
+      for(d in 1:(D+1)){
+        reported_temp[d] <- rbinom(1, size = true_cases[t, sim], prob = simsQ(method = method, D = D,
+                                                                              b = b, t = days))
+      }
+      reported_cases[t, , sim] <- sort(reported_temp)
+    }
+  }
+  avg_reported_cases <- apply(reported_cases, c(1, 2), mean)
+  out <- list(case_reported = avg_reported_cases, case_true = apply(true_cases, 1, mean),
+              lambda = apply(true_cases, 1, mean))
+  return(out)
+}
 
 
 
