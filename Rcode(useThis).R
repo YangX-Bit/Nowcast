@@ -13,7 +13,7 @@ p1 <- simsP(Type = "GD", gd_alpha = seq(3,3.3, by = 0.01), gd_beta =  rep(30,30)
             D = D, days = 58)
 
 
-data <- simsDataGenQ( days = N_obs)
+data <- simsDataGenQ(days = N_obs, method = "constant")
 
 # sims
 # avg_lambda_t <- apply(data$lambda, 1, mean)  
@@ -21,7 +21,7 @@ data <- simsDataGenQ( days = N_obs)
 # 
 # case_reported_acc <- data$case_reported_acc
 # case_reported_acc[,16]
-data$case_reported
+data$case_reported[,16]
 data$case_true
 data$lambda
 
@@ -89,12 +89,12 @@ N_t_posterior_map <- function(lambda_t_samples, b_samples, D) {
 }
 N_t_map_estimates <- N_t_posterior_map(lambda_samples, b_samples, D)
 
-round((apply(N_t_map_estimates, 2, mean) - data$case_true),0) 
+round((apply(N_t_map_estimates, 2, mean) - data$case_true),0) # bias?
 
 
 ################# try p2
-data_2 <- simsDataGen(p = p2, days = N_obs)
-stan_data_2 <- list(N_obs = N_obs, D = D + 1, Y = round(data_2$case_reported_acc))
+data_2 <- simsDataGenQ(days = N_obs, method = "time_varying")
+stan_data_2 <- list(N_obs = N_obs, D = D + 1, Y = round(data_2$case_reported))
 
 fit_2 <- stan(
   file = "stan_model_code.stan",  
@@ -102,12 +102,14 @@ fit_2 <- stan(
   iter = 2000, chains = 3, seed = 123
 )
 
+print(fit_2)
+
 lambda_samples_2 <- rstan::extract(fit_2)$lambda_t
 b_samples_2 <- rstan::extract(fit_2)$b_t
 
 N_t_map_estimates_2 <- N_t_posterior_map(lambda_samples_2, b_samples_2, D)
 
-round(apply(N_t_map_estimates_2, 2, mean) - apply(data_2$case_true, 1, mean),2) 
+round((apply(N_t_map_estimates_2, 2, mean) - data_2$case_true),0) 
 
 
 

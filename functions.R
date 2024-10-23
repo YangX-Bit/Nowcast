@@ -113,7 +113,7 @@ p3 <- simsP(Type = "basin", D = 15, days = 58)
 
 simsQ <- function(method = "constant", 
                   b = 3, D = 15, t = NULL,
-                  beta1 = -2, beta2 = 0.1){
+                  beta0 = -2, beta1 = 0.1){
   # 'method' defines how Q is simulated
   # 'b' can be a constant or a time-varying function
   # 'd' is the delay time, and 't' is the current time point (optional)
@@ -122,12 +122,10 @@ simsQ <- function(method = "constant",
     qd <- 1 - exp(-b * 1:(D + 1))  # Q with constant b
   } else if (method == "time_varying") {
     if (is.null(t)) stop("Time 't' must be provided for time-varying method.")
-    
-    qd <- matrix(0, nrow = t, ncol = D+1)
     for (i in 1:t) {
-      b_t <- exp(beta1 + beta2 * i)  
+      b_t <- exp(beta0 + beta1 * i)  
       
-      qd[i,] <- 1 - exp(-b_t * 1:(D + 1))
+      qd <- 1 - exp(-b_t * 1:(D + 1))
     }
   } else {
     stop("Unknown method for Q simulation.")
@@ -135,7 +133,10 @@ simsQ <- function(method = "constant",
   
   return(qd)
 }
-simsQ("time_varying", t = 50)
+
+simsQ("time_varying", t = 30)
+simsQ("constant", b = 3)
+
 
 # par(mfrow = c(5,6))
 # for (i in 1:30) {
@@ -212,7 +213,7 @@ simsDataGenP <- function(alpha =  c(1:10, seq(10, 120, by = 4), seq(120, 3, by =
 }
 
 simsDataGenQ <- function(alpha =  c(1:10, seq(10, 120, by = 4), seq(120, 3, by = -6) ), beta = 0.5,
-                        b = 0.5, method = "constant",
+                        b = 3, method = "constant",
                         days = 30, D = 15, seed = 123){
   if(length(alpha) < days){
     stop("Error! The length of alpha cannot be less than days!")
@@ -240,19 +241,31 @@ simsDataGenQ <- function(alpha =  c(1:10, seq(10, 120, by = 4), seq(120, 3, by =
       
       # D times from binom
       reported_temp <- numeric(D+1)
+      
+      # report proportion
+      if(method == "constant"){
+        prob_temp <- simsQ("constant", b = b)
+      }else if(method == "time_varying"){
+        prob_temp <- simsQ("time_varying", t = t)
+      }
+
       for(d in 1:(D+1)){
-        reported_temp[d] <- rbinom(1, size = true_cases[t, sim], prob = simsQ(method = method, D = D,
-                                                                              b = b, t = days))
+        reported_temp[d] <- rbinom(1, size = true_cases[t, sim], prob = prob_temp[d])
       }
       reported_cases[t, , sim] <- sort(reported_temp)
     }
   }
   avg_reported_cases <- apply(reported_cases, c(1, 2), mean)
   out <- list(case_reported = avg_reported_cases, case_true = apply(true_cases, 1, mean),
-              lambda = apply(true_cases, 1, mean))
+              lambda = apply(lambda_t, 1, mean))
   return(out)
 }
 
+
+for(d in 1:(D+1)){
+  prob_temp <- simsQ(method = method, D = D, b = b, t = days)
+  reported_temp[d] <- rbinom(1, size = true_cases[t, sim], prob = prob_temp)
+}
 
 
 ### functions to transfer the simulation data to the form of data in the paper
