@@ -1,7 +1,7 @@
-setwd("/Users/xiaoy0a/Desktop/Github/Dengue/Nowcast")
+setwd("/Users/xiaoy0a/Desktop/Github/Dengue/Nowcast/Project")
 
 # import simulation data
-source("../Nowcast/functions.R")
+source("../Project/scripts/simulation/simulations_functions.R")
 
 library(rstan)
 #sims data
@@ -9,8 +9,8 @@ set.seed(1)
 
 D <- 15
 N_obs <- 58
-p1 <- simsP(Type = "GD", gd_alpha = seq(3,3.3, by = 0.01), gd_beta =  rep(30,30), 
-            D = D, days = 58)
+# p1 <- simsP(Type = "GD", gd_alpha = seq(3,3.3, by = 0.01), gd_beta =  rep(30,30), 
+#             D = D, days = 58)
 
 
 data <- simsDataGenQ(days = N_obs, method = "constant")
@@ -37,15 +37,24 @@ data$lambda
 # 
 # q <- p_to_q(p)
 
+## spline
+library(splines)
+
+
 stan_data <- list(N_obs = N_obs, D = D + 1, Y = round(data$case_reported))
 
 fit <- stan(
-  file = "stan_model_code.stan",  
+  file = "stan_model_constantB.stan",  
   data = stan_data, 
   iter = 2000, chains = 3, seed = 123
 )
 
 print(fit)
+
+install.packages("aweek")
+library(aweek)
+
+get_date(34, year = 2017)
 
 # posterior of lambda_t and b
 lambda_samples <- rstan::extract(fit)$lambda_t
@@ -97,7 +106,7 @@ data_2 <- simsDataGenQ(days = N_obs, method = "time_varying")
 stan_data_2 <- list(N_obs = N_obs, D = D + 1, Y = round(data_2$case_reported))
 
 fit_2 <- stan(
-  file = "stan_model_code.stan",  
+  file = "stan_model_b_varying.stan",  
   data = stan_data_2, 
   iter = 2000, chains = 3, seed = 123
 )
